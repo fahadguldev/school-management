@@ -10,7 +10,7 @@ async function bootstrap() {
       allowedHeaders: ['Content-Type', 'Authorization'],
     });
 
-  const port = process.env.PORT || 4000;
+  const port = process.env.PORT || 4001;
   await app.listen(port);
   console.log(`School Management SaaS backend running on port ${port}`);
 }
