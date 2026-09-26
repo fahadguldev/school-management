@@ -17,6 +17,10 @@ import { ResultsModule } from './results/results.module';
 import { FeesModule } from './fees/fees.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
+import { AttendanceModule } from './attendance/attendance.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { IntelligenceModule } from './intelligence/intelligence.module';
+import { OperationsModule } from './operations/operations.module';
 import { getConfig } from './common/config/config.service';
 import { TestController } from './test/test.controller';
 const config = getConfig();
@@ -79,6 +83,10 @@ const config = getConfig();
     FeesModule,
     AnalyticsModule,
     AuditModule,
+    AttendanceModule,
+    NotificationsModule,
+    IntelligenceModule,
+    OperationsModule,
   ],
   controllers: [TestController],
   providers: [
