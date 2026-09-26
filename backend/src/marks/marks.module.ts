@@ -11,12 +11,15 @@ import { MarksController } from './marks.controller';
 import { MarksService } from './marks.service';
 
 import { AuditModule } from '../audit/audit.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { MarksCorrectionRequest } from './marks-correction-request.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Mark, Assessment, Student, Subject, Teacher, TeacherAssignment]),
+    TypeOrmModule.forFeature([Mark, MarksCorrectionRequest, Assessment, Student, Subject, Teacher, TeacherAssignment]),
     ResultsModule,
     AuditModule,
+    NotificationsModule,
   ],
   controllers: [MarksController],
   providers: [MarksService],

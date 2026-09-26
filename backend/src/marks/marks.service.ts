@@ -11,6 +11,10 @@ import { Teacher } from '../teachers/teacher.entity';
 import { Mark } from './mark.entity';
 import { MarkPayload } from './mark-payload.interface';
 import { parseMarksFile } from './marks-file.parser';
+import { MarksCorrectionRequest } from './marks-correction-request.entity';
+import { User } from '../users/user.entity';
+import { AuditService } from '../audit/audit.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class MarksService {
@@ -27,9 +31,13 @@ export class MarksService {
     private readonly teachers: Repository<Teacher>,
     @InjectRepository(TeacherAssignment)
     private readonly assignments: Repository<TeacherAssignment>,
+    @InjectRepository(MarksCorrectionRequest)
+    private readonly corrections: Repository<MarksCorrectionRequest>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
     private readonly results: ResultsService,
+    private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   findByAssessment(assessmentId: string, user: AuthenticatedUser) {
@@ -144,6 +152,7 @@ export class MarksService {
   async publishAssessment(assessmentId: string, user: AuthenticatedUser) {
     const assessment = await this.assessments.findOne({
       where: { id: assessmentId, organizationId: user.organizationId },
+      relations: { subject: true },
     });
 
     if (!assessment) {
@@ -155,7 +164,115 @@ export class MarksService {
     await this.assessments.save(assessment);
     const results = await this.results.calculateForAssessment(assessmentId, user.organizationId);
 
+    const studentIds = [...new Set(results.map((result) => result.student?.id).filter(Boolean))];
+    await Promise.all(studentIds.map((studentId) => this.notifications.notifyStudent(
+      user.organizationId,
+      studentId,
+      'RESULT_PUBLISHED',
+      { assessment: assessment.name },
+    )));
+
+    await this.audit.recordLog({
+      organizationId: user.organizationId,
+      userId: user.id,
+      action: 'PUBLISH_RESULT',
+      resource: 'results',
+      newValue: { assessmentId, resultCount: results.length },
+    });
+
     return { assessment, results };
+  }
+
+  async requestCorrection(
+    markId: string,
+    payload: { requestedValue: number; reason: string },
+    user: AuthenticatedUser,
+  ) {
+    const mark = await this.marks.findOne({
+      where: { id: markId, organizationId: user.organizationId },
+      relations: { assessment: { class: true }, subject: true, student: true },
+    });
+    if (!mark) throw new NotFoundException('Mark not found');
+    if (!mark.assessment.isPublished) throw new BadRequestException('Use normal marks entry before publishing');
+    if (!payload.reason?.trim()) throw new BadRequestException('A correction reason is required');
+    if (Number(payload.requestedValue) < 0 || Number(payload.requestedValue) > Number(mark.assessment.maximumMarks)) {
+      throw new BadRequestException('Requested marks are outside the assessment range');
+    }
+    if (user.role === 'TEACHER') {
+      const teacher = await this.teachers.findOne({ where: { organizationId: user.organizationId, user: { id: user.id } } });
+      const assignment = teacher && await this.assignments.findOne({
+        where: {
+          organizationId: user.organizationId,
+          teacher: { id: teacher.id },
+          class: { id: mark.assessment.class?.id },
+          subject: { id: mark.subject.id },
+        },
+      });
+      if (!assignment) throw new ForbiddenException('You are not assigned to this class and subject');
+    }
+    const request = await this.corrections.save(this.corrections.create({
+      organizationId: user.organizationId,
+      mark,
+      oldValue: Number(mark.obtainedMarks),
+      requestedValue: Number(payload.requestedValue),
+      reason: payload.reason.trim(),
+      requestedBy: { id: user.id } as User,
+      status: 'PENDING',
+      reviewedBy: null,
+      reviewedAt: null,
+      reviewReason: null,
+    }));
+    await this.audit.recordLog({
+      organizationId: user.organizationId,
+      userId: user.id,
+      action: 'REQUEST_MARKS_CORRECTION',
+      resource: 'marks',
+      oldValue: { markId, value: mark.obtainedMarks },
+      newValue: { requestedValue: payload.requestedValue, reason: payload.reason },
+    });
+    return request;
+  }
+
+  listCorrections(user: AuthenticatedUser, status?: 'PENDING' | 'APPROVED' | 'REJECTED') {
+    return this.corrections.find({
+      where: { organizationId: user.organizationId, ...(status ? { status } : {}) },
+      relations: { mark: { student: true, subject: true, assessment: true }, requestedBy: true, reviewedBy: true },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async reviewCorrection(
+    id: string,
+    payload: { status: 'APPROVED' | 'REJECTED'; reason?: string },
+    user: AuthenticatedUser,
+  ) {
+    const request = await this.corrections.findOne({
+      where: { id, organizationId: user.organizationId },
+      relations: { mark: { assessment: true } },
+    });
+    if (!request) throw new NotFoundException('Marks correction request not found');
+    if (request.status !== 'PENDING') throw new BadRequestException('Request has already been reviewed');
+    if (!['APPROVED', 'REJECTED'].includes(payload.status)) throw new BadRequestException('Invalid review status');
+    request.status = payload.status;
+    request.reviewedBy = { id: user.id } as User;
+    request.reviewedAt = new Date();
+    request.reviewReason = payload.reason || null;
+    if (payload.status === 'APPROVED') {
+      request.mark.obtainedMarks = Number(request.requestedValue);
+      request.mark.isAbsent = false;
+      await this.marks.save(request.mark);
+      await this.results.calculateForAssessment(request.mark.assessment.id, user.organizationId);
+    }
+    await this.corrections.save(request);
+    await this.audit.recordLog({
+      organizationId: user.organizationId,
+      userId: user.id,
+      action: `MARKS_CORRECTION_${payload.status}`,
+      resource: 'marks',
+      oldValue: { markId: request.mark.id, value: Number(request.oldValue) },
+      newValue: { value: payload.status === 'APPROVED' ? Number(request.requestedValue) : Number(request.oldValue), reason: payload.reason },
+    });
+    return request;
   }
 
   private async validateMarkPayload(payload: MarkPayload, user: AuthenticatedUser): Promise<void> {

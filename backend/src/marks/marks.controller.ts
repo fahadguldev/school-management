@@ -85,4 +85,22 @@ export class MarksController {
   publishAssessment(@Param('assessmentId') assessmentId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.marks.publishAssessment(assessmentId, user);
   }
+
+  @Roles('ADMIN', 'TEACHER')
+  @Post(':markId/corrections')
+  requestCorrection(@Param('markId') markId: string, @Body() body: { requestedValue: number; reason: string }, @CurrentUser() user: AuthenticatedUser) {
+    return this.marks.requestCorrection(markId, body, user);
+  }
+
+  @Roles('ADMIN', 'INCHARGE')
+  @Get('corrections/requests')
+  corrections(@CurrentUser() user: AuthenticatedUser) {
+    return this.marks.listCorrections(user);
+  }
+
+  @Roles('ADMIN', 'INCHARGE')
+  @Post('corrections/:id/review')
+  reviewCorrection(@Param('id') id: string, @Body() body: { status: 'APPROVED' | 'REJECTED'; reason?: string }, @CurrentUser() user: AuthenticatedUser) {
+    return this.marks.reviewCorrection(id, body, user);
+  }
 }

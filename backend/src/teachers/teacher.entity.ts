@@ -14,6 +14,9 @@ export class Teacher extends BaseEntity {
   @Column({ type: 'varchar', length: 20, unique: true })
   employeeId!: string;
 
+  @Column({ type: 'date', nullable: true })
+  hireDate!: Date | null;
+
   @ManyToOne(() => User, { nullable: true })
   user?: User;
 

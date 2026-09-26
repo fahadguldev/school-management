@@ -1,12 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Between, Repository } from 'typeorm';
 import { AuthenticatedUser } from '../common/auth/authenticated-user';
 import { Student } from '../students/student.entity';
 import { FeeStructure } from './fee-structure.entity';
 import { Fee } from './fee.entity';
 import { Payment } from './payment.entity';
 import { AuditService } from '../audit/audit.service';
+import { StudentEnrollment } from '../academic/student-enrollment.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { FeeFine } from './fee-fine.entity';
+import { SiblingDiscount } from './sibling-discount.entity';
 
 @Injectable()
 export class FeesService {
@@ -19,7 +23,14 @@ export class FeesService {
     private readonly payments: Repository<Payment>,
     @InjectRepository(Student)
     private readonly students: Repository<Student>,
+    @InjectRepository(StudentEnrollment)
+    private readonly enrollments: Repository<StudentEnrollment>,
+    @InjectRepository(FeeFine)
+    private readonly fines: Repository<FeeFine>,
+    @InjectRepository(SiblingDiscount)
+    private readonly discounts: Repository<SiblingDiscount>,
     private readonly auditService: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   findStructures(user: AuthenticatedUser) {
@@ -43,9 +54,22 @@ export class FeesService {
     payload: Partial<Fee> & { studentId: string; feeStructureId: string },
     user: AuthenticatedUser,
   ) {
+    const discount = await this.discounts.findOne({
+      where: { student: { id: payload.studentId }, organizationId: user.organizationId, isActive: true },
+      order: { createdAt: 'DESC' },
+    });
+    const originalAmount = Number(payload.amount || 0);
+    const discountAmount = discount
+      ? Math.min(originalAmount, discount.discountType === 'PERCENTAGE'
+        ? originalAmount * (Number(discount.value) / 100)
+        : Number(discount.value))
+      : 0;
     const fee = await this.fees.save(
       this.fees.create({
         ...payload,
+        originalAmount,
+        discountAmount: Number(discountAmount.toFixed(2)),
+        amount: Number((originalAmount - discountAmount).toFixed(2)),
         paidAmount: payload.paidAmount ?? 0,
         organizationId: user.organizationId,
         student: { id: payload.studentId },
@@ -64,6 +88,42 @@ export class FeesService {
     return fee;
   }
 
+  async createSiblingDiscount(
+    payload: { studentId: string; discountType: 'FLAT' | 'PERCENTAGE'; value: number },
+    user: AuthenticatedUser,
+  ) {
+    const student = await this.students.findOne({ where: { id: payload.studentId, organizationId: user.organizationId } });
+    if (!student) throw new NotFoundException('Student not found');
+    if (!['FLAT', 'PERCENTAGE'].includes(payload.discountType) || Number(payload.value) <= 0 || (payload.discountType === 'PERCENTAGE' && Number(payload.value) > 100)) {
+      throw new BadRequestException('Invalid sibling discount');
+    }
+    return this.discounts.save(this.discounts.create({
+      organizationId: user.organizationId,
+      student,
+      discountType: payload.discountType,
+      value: payload.value,
+    }));
+  }
+
+  async setFine(
+    feeId: string,
+    payload: { fineType: 'FIXED' | 'PERCENTAGE'; value: number; gracePeriodDays?: number },
+    user: AuthenticatedUser,
+  ) {
+    const fee = await this.fees.findOne({ where: { id: feeId, organizationId: user.organizationId } });
+    if (!fee) throw new NotFoundException('Fee not found');
+    if (!['FIXED', 'PERCENTAGE'].includes(payload.fineType) || Number(payload.value) < 0) throw new BadRequestException('Invalid fine');
+    const existing = await this.fines.findOne({ where: { fee: { id: feeId }, organizationId: user.organizationId } });
+    return this.fines.save(this.fines.create({
+      ...(existing || {}),
+      organizationId: user.organizationId,
+      fee,
+      fineType: payload.fineType,
+      value: payload.value,
+      gracePeriodDays: payload.gracePeriodDays || 0,
+    }));
+  }
+
   async markPaid(
     feeId: string,
     payload: { amount: number; paymentMethod: string; transactionId?: string; receiptNumber?: string },
@@ -71,7 +131,7 @@ export class FeesService {
   ) {
     const fee = await this.fees.findOne({
       where: { id: feeId, organizationId: user.organizationId },
-      relations: { payments: true },
+      relations: { payments: true, student: true },
     });
 
     if (!fee) {
@@ -118,7 +178,101 @@ export class FeesService {
       },
     });
 
+    void this.notifications.notifyStudent(user.organizationId, fee.student.id, 'FEE_PAID', {
+      amount: payload.amount,
+      receipt: payment.receiptNumber || payment.transactionId,
+    });
+
     return { fee, payment };
+  }
+
+  async defaulters(user: AuthenticatedUser, classId?: string, section?: string) {
+    const fees = await this.fees.find({
+      where: { organizationId: user.organizationId, isPaid: false },
+      relations: { student: true, feeStructure: true, payments: true },
+      order: { dueDate: 'ASC' },
+    });
+    const now = new Date();
+    return fees.filter((fee) => {
+      if (new Date(fee.dueDate) >= now) return false;
+      if (section && fee.student.section !== section) return false;
+      return true;
+    }).filter((fee) => !classId || fee.student.className === classId || fee.student.id === classId)
+      .map((fee) => ({
+        feeId: fee.id,
+        student: fee.student,
+        feeName: fee.feeStructure?.name,
+        dueDate: fee.dueDate,
+        daysOverdue: Math.max(0, Math.floor((now.getTime() - new Date(fee.dueDate).getTime()) / 86400000)),
+        amount: Number(fee.amount),
+        paidAmount: Number(fee.paidAmount || 0),
+        balance: Number(fee.amount) - Number(fee.paidAmount || 0),
+      }));
+  }
+
+  async collectionReport(user: AuthenticatedUser, from?: string, to?: string) {
+    const start = from ? new Date(`${from}T00:00:00`) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const end = to ? new Date(`${to}T23:59:59`) : new Date();
+    const payments = await this.payments.find({
+      where: { organizationId: user.organizationId, paymentDate: Between(start, end) },
+      relations: { fee: { student: true } },
+      order: { paymentDate: 'ASC' },
+    });
+    const byClass = new Map<string, number>();
+    const byDay = new Map<string, number>();
+    payments.forEach((payment) => {
+      const classKey = `${payment.fee.student?.className || 'Unassigned'}-${payment.fee.student?.section || ''}`;
+      byClass.set(classKey, (byClass.get(classKey) || 0) + Number(payment.amount));
+      const day = new Date(payment.paymentDate).toISOString().slice(0, 10);
+      byDay.set(day, (byDay.get(day) || 0) + Number(payment.amount));
+    });
+    return {
+      from: start,
+      to: end,
+      total: payments.reduce((sum, payment) => sum + Number(payment.amount), 0),
+      transactionCount: payments.length,
+      byClass: [...byClass].map(([classSection, total]) => ({ classSection, total })),
+      byDay: [...byDay].map(([date, total]) => ({ date, total })),
+    };
+  }
+
+  async bulkCreate(
+    payload: { classId: string; feeStructureId: string; amount?: number; dueDate: string },
+    user: AuthenticatedUser,
+  ) {
+    const structure = await this.feeStructures.findOne({ where: { id: payload.feeStructureId, organizationId: user.organizationId } });
+    if (!structure) throw new NotFoundException('Fee structure not found');
+    const enrollments = await this.enrollments.find({
+      where: { organizationId: user.organizationId, class: { id: payload.classId }, isCurrent: true },
+      relations: { student: true },
+    });
+    const created = [];
+    for (const enrollment of enrollments) {
+      created.push(await this.createFee({
+        studentId: enrollment.student.id,
+        feeStructureId: structure.id,
+        amount: payload.amount ?? Number(structure.amount),
+        dueDate: new Date(payload.dueDate),
+      }, user));
+    }
+    return { created: created.length, feeIds: created.map((fee) => fee.id) };
+  }
+
+  async sendDueReminders(user: AuthenticatedUser, withinDays = 3) {
+    const fees = await this.fees.find({
+      where: { organizationId: user.organizationId, isPaid: false },
+      relations: { student: true },
+    });
+    const now = new Date();
+    const dueSoon = fees.filter((fee) => {
+      const days = (new Date(fee.dueDate).getTime() - now.getTime()) / 86400000;
+      return days >= 0 && days <= withinDays;
+    });
+    await Promise.all(dueSoon.map((fee) => this.notifications.notifyStudent(user.organizationId, fee.student.id, 'FEE_DUE', {
+      amount: Number(fee.amount) - Number(fee.paidAmount || 0),
+      dueDate: new Date(fee.dueDate).toISOString().slice(0, 10),
+    })));
+    return { queued: dueSoon.length };
   }
 
   async markUnpaid(feeId: string, user: AuthenticatedUser) {

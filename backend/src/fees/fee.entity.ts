@@ -15,6 +15,12 @@ export class Fee extends BaseEntity {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount!: number;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  originalAmount!: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  discountAmount!: number;
+
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   paidAmount!: number; // cumulative paid amount
 

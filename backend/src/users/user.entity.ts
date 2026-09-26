@@ -17,7 +17,7 @@ export class User extends BaseEntity {
   lastName!: string;
 
   @Column({ type: 'varchar', length: 20 })
-  role!: string; // STUDENT, TEACHER, INCHARGE, ADMIN, PRINCIPAL
+  role!: string; // STUDENT, TEACHER, INCHARGE, ADMIN, PRINCIPAL, ACCOUNTANT
 
   @Column({ type: 'boolean', default: true })
   isEmailVerified!: boolean;

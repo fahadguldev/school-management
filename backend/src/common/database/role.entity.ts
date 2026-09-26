@@ -6,7 +6,7 @@ export class Role {
   id!: string;
 
   @Column({ unique: true })
-  name!: string; // STUDENT, TEACHER, INCHARGE, ADMIN, PRINCIPAL
+  name!: string; // STUDENT, TEACHER, INCHARGE, ADMIN, PRINCIPAL, ACCOUNTANT
 
   @Column({ type: 'text', nullable: true })
   description!: string | null;
