@@ -1,7 +1,7 @@
 export interface UserSession {
   id: string;
   email: string;
-  role: "STUDENT" | "TEACHER" | "INCHARGE" | "ADMIN" | "PRINCIPAL";
+  role: "STUDENT" | "TEACHER" | "INCHARGE" | "ADMIN" | "PRINCIPAL" | "ACCOUNTANT";
   organizationId: string;
   firstName?: string;
   lastName?: string;
@@ -258,6 +258,11 @@ class ApiClient {
     getTemplate: () => this.request("/marks/import/template"),
     publishAssessment: (assessmentId: string) =>
       this.request(`/marks/assessment/${assessmentId}/publish`, { method: "POST" }),
+    requestCorrection: (markId: string, payload: { requestedValue: number; reason: string }) =>
+      this.request(`/marks/${markId}/corrections`, { method: "POST", body: JSON.stringify(payload) }),
+    getCorrections: () => this.request("/marks/corrections/requests"),
+    reviewCorrection: (id: string, payload: { status: "APPROVED" | "REJECTED"; reason?: string }) =>
+      this.request(`/marks/corrections/${id}/review`, { method: "POST", body: JSON.stringify(payload) }),
   };
 
   results = {
@@ -266,6 +271,8 @@ class ApiClient {
       this.request(`/results/student/${studentId}/summary${termId ? `?termId=${termId}` : ""}`),
     getStudentReportCard: (studentId: string, termId?: string) =>
       this.request(`/results/student/${studentId}/report-card${termId ? `?termId=${termId}` : ""}`),
+    saveRemark: (studentId: string, payload: { termId: string; remarkText: string }) =>
+      this.request(`/results/student/${studentId}/remarks`, { method: "POST", body: JSON.stringify(payload) }),
   };
 
   fees = {
@@ -282,6 +289,22 @@ class ApiClient {
       this.request(`/fees/${feeId}/pay`, { method: "POST", body: JSON.stringify(payload) }),
     markUnpaid: (feeId: string) => this.request(`/fees/${feeId}/unpay`, { method: "POST" }),
     getPayments: (feeId: string) => this.request(`/fees/${feeId}/payments`),
+    getDefaulters: (params?: { classId?: string; section?: string }) => {
+      const q = new URLSearchParams(params as any).toString();
+      return this.request(`/fees/reports/defaulters${q ? `?${q}` : ""}`);
+    },
+    getCollections: (params?: { from?: string; to?: string }) => {
+      const q = new URLSearchParams(params as any).toString();
+      return this.request(`/fees/reports/collections${q ? `?${q}` : ""}`);
+    },
+    bulkCreate: (payload: { classId: string; feeStructureId: string; amount?: number; dueDate: string }) =>
+      this.request("/fees/bulk", { method: "POST", body: JSON.stringify(payload) }),
+    sendDueReminders: (withinDays = 3) =>
+      this.request("/fees/due-reminders", { method: "POST", body: JSON.stringify({ withinDays }) }),
+    setFine: (feeId: string, payload: { fineType: "FIXED" | "PERCENTAGE"; value: number; gracePeriodDays?: number }) =>
+      this.request(`/fees/${feeId}/fine`, { method: "POST", body: JSON.stringify(payload) }),
+    addSiblingDiscount: (payload: { studentId: string; discountType: "FLAT" | "PERCENTAGE"; value: number }) =>
+      this.request("/fees/discounts/sibling", { method: "POST", body: JSON.stringify(payload) }),
   };
 
   audit = {
@@ -301,6 +324,70 @@ class ApiClient {
     getPrincipalTeacherPerformance: () => this.request("/analytics/principal/teacher-performance"),
     getInchargeClassOverview: (classId?: string) =>
       this.request(`/analytics/incharge/class-overview${classId ? `?classId=${classId}` : ""}`),
+  };
+
+  attendance = {
+    createSession: (payload: { classId: string; date?: string; period?: string }) =>
+      this.request("/attendance/sessions", { method: "POST", body: JSON.stringify(payload) }),
+    getSession: (id: string) => this.request(`/attendance/sessions/${id}`),
+    getDaily: (params?: { date?: string; classId?: string }) => {
+      const q = new URLSearchParams(params as any).toString();
+      return this.request(`/attendance/daily${q ? `?${q}` : ""}`);
+    },
+    mark: (sessionId: string, payload: any) =>
+      this.request(`/attendance/sessions/${sessionId}/records`, { method: "PATCH", body: JSON.stringify(payload) }),
+    getStudentHistory: (studentId: string, params?: { from?: string; to?: string }) => {
+      const q = new URLSearchParams(params as any).toString();
+      return this.request(`/attendance/students/${studentId}/history${q ? `?${q}` : ""}`);
+    },
+    requestCorrection: (recordId: string, payload: { requestedStatus: string; reason: string }) =>
+      this.request(`/attendance/records/${recordId}/corrections`, { method: "POST", body: JSON.stringify(payload) }),
+    getCorrections: () => this.request("/attendance/corrections"),
+    reviewCorrection: (id: string, payload: { status: "APPROVED" | "REJECTED"; reason?: string }) =>
+      this.request(`/attendance/corrections/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+    markStaff: (payload: { staffId: string; date?: string; status: string }) =>
+      this.request("/attendance/staff", { method: "POST", body: JSON.stringify(payload) }),
+    getStaffSummary: (month?: string) => this.request(`/attendance/staff/summary${month ? `?month=${month}` : ""}`),
+    requestLeave: (payload: { startDate: string; endDate: string; reason: string }) =>
+      this.request("/attendance/staff/leave-requests", { method: "POST", body: JSON.stringify(payload) }),
+  };
+
+  notifications = {
+    getLogs: () => this.request("/notifications/logs"),
+    getContacts: (studentId: string) => this.request(`/notifications/students/${studentId}/contacts`),
+    addContact: (studentId: string, payload: { phoneNumber: string; isPrimary?: boolean }) =>
+      this.request(`/notifications/students/${studentId}/contacts`, { method: "POST", body: JSON.stringify(payload) }),
+    retry: (id: string) => this.request(`/notifications/${id}/retry`, { method: "POST" }),
+  };
+
+  intelligence = {
+    getThreshold: (metric: "passRate" | "attendance" | "feeCollection" | "improvement", value: number) =>
+      this.request(`/intelligence/threshold?metric=${metric}&value=${value}`),
+    getTeacherLeaderboard: (params?: { subjectId?: string; className?: string }) => {
+      const q = new URLSearchParams(params as any).toString();
+      return this.request(`/intelligence/teachers/leaderboard${q ? `?${q}` : ""}`);
+    },
+    getGradingPatterns: () => this.request("/intelligence/teachers/grading-patterns"),
+    getTeacher: (id: string) => this.request(`/intelligence/teachers/${id}`),
+    getSectionGaps: () => this.request("/intelligence/section-gaps"),
+    getWeakSubjects: () => this.request("/intelligence/weak-subjects"),
+    getAtRiskStudents: () => this.request("/intelligence/risk/students"),
+    getFeeDefaultRisk: () => this.request("/intelligence/risk/fee-defaults"),
+    getTrends: () => this.request("/intelligence/trends/school"),
+    getYearOverYear: (termName?: string) => this.request(`/intelligence/trends/year-over-year${termName ? `?termName=${encodeURIComponent(termName)}` : ""}`),
+    getDashboard: () => this.request("/intelligence/dashboard"),
+    getAlerts: () => this.request("/intelligence/alerts"),
+    evaluateAlerts: () => this.request("/intelligence/alerts/evaluate", { method: "POST" }),
+    acknowledgeAlert: (id: string) => this.request(`/intelligence/alerts/${id}/acknowledge`, { method: "PATCH" }),
+  };
+
+  operations = {
+    importRows: (kind: "students" | "fee-structures", rows: any[]) =>
+      this.request(`/operations/imports/${kind}`, { method: "POST", body: JSON.stringify({ rows }) }),
+    importFile: (kind: "students" | "fee-structures", file: File) =>
+      this.uploadFile(`/operations/imports/${kind}`, file, file.name),
+    promote: (payload: { sourceClassId: string; targetClassId: string; academicYear: string; term?: string; holdBackStudentIds?: string[] }) =>
+      this.request("/operations/promotions", { method: "POST", body: JSON.stringify(payload) }),
   };
 }
 

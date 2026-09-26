@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
 import { UserCheck, TrendingUp, TrendingDown, CheckCircle2 } from "lucide-react";
+import { AttendancePanel } from "@/components/AttendancePanel";
 
 export function InchargePortal() {
   const [data, setData] = useState<any>(null);
@@ -58,6 +59,7 @@ export function InchargePortal() {
 
   return (
     <div className="space-y-6">
+      <AttendancePanel />
       {/* Live API Notice */}
       <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-300 flex items-start space-x-2">
         <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />

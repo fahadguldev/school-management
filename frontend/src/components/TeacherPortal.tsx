@@ -16,6 +16,7 @@ import {
   Lock,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { AttendancePanel } from "@/components/AttendancePanel";
 
 export function TeacherPortal() {
   const [selectedClass, setSelectedClass] = useState("8-A");
@@ -110,6 +111,7 @@ export function TeacherPortal() {
 
   return (
     <div className="space-y-6">
+      <AttendancePanel />
       {message && (
         <div
           className={`p-3 rounded-md text-xs flex items-center justify-between border ${

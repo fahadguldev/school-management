@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
 import { TrendingUp, TrendingDown, CheckCircle2 } from "lucide-react";
+import { PrincipalIntelligenceSuite } from "@/components/PrincipalIntelligenceSuite";
 
 export function PrincipalPortal() {
   const [overview, setOverview] = useState<any>(null);
@@ -65,6 +66,8 @@ export function PrincipalPortal() {
           <span className="font-semibold">Academic Intelligence Active:</span> Connected to live backend endpoints <code className="font-mono bg-emerald-100 dark:bg-emerald-950 px-1 py-0.5 rounded">/analytics/principal/class-comparison</code> and <code className="font-mono bg-emerald-100 dark:bg-emerald-950 px-1 py-0.5 rounded">/analytics/principal/teacher-performance</code>.
         </div>
       </div>
+
+      <PrincipalIntelligenceSuite />
 
       {/* Overview Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
