@@ -21,6 +21,6 @@ export class AttendanceRecord extends BaseEntity {
   @ManyToOne(() => User, { nullable: false })
   markedBy!: User;
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   markedAt!: Date;
 }

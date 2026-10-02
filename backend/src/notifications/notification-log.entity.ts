@@ -26,7 +26,7 @@ export class NotificationLog extends BaseEntity {
   @Column({ type: 'varchar', length: 20, default: 'QUEUED' })
   status!: 'QUEUED' | 'SENT' | 'FAILED';
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   sentAt!: Date | null;
 
   @Column({ type: 'integer', default: 0 })

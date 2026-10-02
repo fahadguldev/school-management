@@ -26,7 +26,7 @@ export class AttendanceCorrectionRequest extends BaseEntity {
   @ManyToOne(() => User, { nullable: true })
   reviewedBy!: User | null;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   reviewedAt!: Date | null;
 
   @Column({ type: 'text', nullable: true })
