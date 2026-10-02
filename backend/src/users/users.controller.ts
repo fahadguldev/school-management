@@ -12,12 +12,12 @@ export class UsersController {
 
   @Get()
   findAll(@CurrentUser() user: AuthenticatedUser) {
-    return this.users.findAll(user);
+    return this.users.listUsers(user);
   }
 
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.users.findOne(id, user);
+    return this.users.getUser(id, user);
   }
 
   @Post()
@@ -34,6 +34,6 @@ export class UsersController {
     @Body() body: Partial<User> & { password?: string },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.users.update(id, body, user);
+    return this.users.updateUser(id, body, user);
   }
 }
