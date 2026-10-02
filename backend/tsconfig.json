@@ -21,9 +21,8 @@
     "noFallthroughCasesInSwitch": false,
     "paths": {
       "@app/*": ["src/*"]
-    },
-    "rootDir": "src"
+    }
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "jest.config.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }
