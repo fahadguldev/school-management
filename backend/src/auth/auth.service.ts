@@ -8,6 +8,7 @@ import * as jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { getConfig } from '../common/config/config.service';
+import { hashPassword, needsRehash, verifyPassword } from '../common/security/password';
 import { UserRole } from '../common/auth/authenticated-user';
 import { Organization } from '../organizations/organization.entity';
 import { User } from '../users/user.entity';
@@ -57,7 +58,7 @@ export class AuthService {
       role: 'ADMIN',
       organizationId: organization.id,
     });
-    user.setPassword(payload.password);
+    user.passwordHash = await hashPassword(payload.password);
 
     await this.users.save(user);
     return this.issueTokens(user);
@@ -66,8 +67,15 @@ export class AuthService {
   async login(email: string, password: string): Promise<AuthResponse> {
     const user = await this.users.findOne({ where: { email, isActive: true } });
 
-    if (!user || !user.validatePassword(password)) {
+    if (!user || !(await verifyPassword(password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Legacy SHA-256 hashes (and hashes below the configured bcrypt cost) are
+    // transparently upgraded on the next successful sign-in.
+    if (needsRehash(user.passwordHash)) {
+      user.passwordHash = await hashPassword(password);
+      await this.users.save(user);
     }
 
     return this.issueTokens(user);
@@ -97,8 +105,16 @@ export class AuthService {
   }
 
   async logout(userId: string): Promise<{ success: true }> {
-    await this.users.update({ id: userId }, { refreshToken: null });
+    await this.revokeAllSessions(userId);
     return { success: true };
+  }
+
+  /**
+   * Invalidates every outstanding refresh token for a user. Called on logout and
+   * on password reset so a stolen refresh token cannot outlive a credential change.
+   */
+  private async revokeAllSessions(userId: string): Promise<void> {
+    await this.users.update({ id: userId }, { refreshToken: null });
   }
 
   async requestPasswordReset(email: string): Promise<{ resetToken: string }> {
@@ -123,10 +139,12 @@ export class AuthService {
       throw new BadRequestException('Invalid or expired reset token');
     }
 
-    user.setPassword(password);
+    user.passwordHash = await hashPassword(password);
     user.resetPasswordToken = null;
     user.resetPasswordExpires = null;
     await this.users.save(user);
+
+    await this.revokeAllSessions(user.id);
 
     return { success: true };
   }
