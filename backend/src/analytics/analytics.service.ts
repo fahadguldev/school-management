@@ -29,6 +29,35 @@ export class AnalyticsService {
     private readonly assignments: Repository<TeacherAssignment>,
   ) {}
 
+  /**
+   * Splits results into per-assessment cohorts ordered oldest-first, then averages
+   * the two most recent cohorts. With a single cohort, current === previous.
+   */
+  private splitByAssessmentPeriod(results: Result[]) {
+    const byAssessment = new Map<string, Result[]>();
+    for (const r of results) {
+      const list = byAssessment.get(r.assessment.id) || [];
+      list.push(r);
+      byAssessment.set(r.assessment.id, list);
+    }
+
+    const ordered = [...byAssessment.values()].sort((a, b) => {
+      const dateA = new Date(a[0]?.assessment?.examDate || a[0]?.createdAt).getTime();
+      const dateB = new Date(b[0]?.assessment?.examDate || b[0]?.createdAt).getTime();
+      return dateA - dateB;
+    });
+
+    if (!ordered.length) {
+      return { latestSet: [] as Result[], prevSet: [] as Result[], currentAvg: 0, previousAvg: 0, hasComparison: false };
+    }
+
+    const avg = (set: Result[]) => set.reduce((sum, r) => sum + Number(r.percentage), 0) / set.length;
+    const latestSet = ordered[ordered.length - 1];
+    const prevSet = ordered.length > 1 ? ordered[ordered.length - 2] : latestSet;
+
+    return { latestSet, prevSet, currentAvg: avg(latestSet), previousAvg: avg(prevSet), hasComparison: ordered.length > 1 };
+  }
+
   async schoolOverview(user: AuthenticatedUser) {
     const [students, results, assessments, fees] = await Promise.all([
       this.students.count({ where: { organizationId: user.organizationId, isActive: true } }),
@@ -117,33 +146,7 @@ export class AnalyticsService {
       }
 
       // Group by assessment to distinguish previous vs current term/test
-      const byAssessment = new Map<string, Result[]>();
-      for (const r of classResults) {
-        const aId = r.assessment.id;
-        const list = byAssessment.get(aId) || [];
-        list.push(r);
-        byAssessment.set(aId, list);
-      }
-
-      const assessmentsList = [...byAssessment.entries()].sort((a, b) => {
-        const dateA = new Date(a[1][0]?.assessment?.examDate || a[1][0]?.createdAt).getTime();
-        const dateB = new Date(b[1][0]?.assessment?.examDate || b[1][0]?.createdAt).getTime();
-        return dateA - dateB;
-      });
-
-      let currentAvg = 0;
-      let previousAvg = 0;
-
-      if (assessmentsList.length === 1) {
-        const singleSet = assessmentsList[0][1];
-        currentAvg = singleSet.reduce((sum, r) => sum + Number(r.percentage), 0) / singleSet.length;
-        previousAvg = currentAvg;
-      } else if (assessmentsList.length > 1) {
-        const latestSet = assessmentsList[assessmentsList.length - 1][1];
-        const prevSet = assessmentsList[assessmentsList.length - 2][1];
-        currentAvg = latestSet.reduce((sum, r) => sum + Number(r.percentage), 0) / latestSet.length;
-        previousAvg = prevSet.reduce((sum, r) => sum + Number(r.percentage), 0) / prevSet.length;
-      }
+      const { currentAvg, previousAvg } = this.splitByAssessmentPeriod(classResults);
 
       const passCount = classResults.filter((r) => r.isPassed).length;
       const passRate = (passCount / classResults.length) * 100;
@@ -210,35 +213,13 @@ export class AnalyticsService {
       }
 
       // Group by assessment
-      const byAssessment = new Map<string, Result[]>();
-      for (const r of matchResults) {
-        const aId = r.assessment.id;
-        const list = byAssessment.get(aId) || [];
-        list.push(r);
-        byAssessment.set(aId, list);
-      }
+      const { currentAvg, previousAvg, latestSet, prevSet, hasComparison } =
+        this.splitByAssessmentPeriod(matchResults);
 
-      const assessmentsList = [...byAssessment.entries()].sort((a, b) => {
-        const dateA = new Date(a[1][0]?.assessment?.examDate || a[1][0]?.createdAt).getTime();
-        const dateB = new Date(b[1][0]?.assessment?.examDate || b[1][0]?.createdAt).getTime();
-        return dateA - dateB;
-      });
-
-      let currentAvg = 0;
-      let previousAvg = 0;
       let studentsImproved = 0;
       let studentsDeclined = 0;
 
-      if (assessmentsList.length === 1) {
-        const singleSet = assessmentsList[0][1];
-        currentAvg = singleSet.reduce((sum, r) => sum + Number(r.percentage), 0) / singleSet.length;
-        previousAvg = currentAvg;
-      } else if (assessmentsList.length > 1) {
-        const latestSet = assessmentsList[assessmentsList.length - 1][1];
-        const prevSet = assessmentsList[assessmentsList.length - 2][1];
-        currentAvg = latestSet.reduce((sum, r) => sum + Number(r.percentage), 0) / latestSet.length;
-        previousAvg = prevSet.reduce((sum, r) => sum + Number(r.percentage), 0) / prevSet.length;
-
+      if (hasComparison) {
         // Compare individual student movements
         const prevMap = new Map(prevSet.map((r) => [r.student.id, Number(r.percentage)]));
         for (const r of latestSet) {
@@ -412,7 +393,6 @@ export class AnalyticsService {
   async studentPerformance(
     user: AuthenticatedUser,
     options: {
-      evaluatorRole?: string;
       strongThreshold?: number;
       weakThreshold?: number;
       classId?: string;

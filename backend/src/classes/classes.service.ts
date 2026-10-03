@@ -19,6 +19,41 @@ export class ClassesService extends TenantCrudService<Class> {
     super(repo);
   }
 
+  /**
+   * Per-section enrollment counts and class-incharge details, keyed by class id.
+   */
+  private async rollupMaps(user: AuthenticatedUser) {
+    const [enrollments, incharges] = await Promise.all([
+      this.enrollments.find({
+        where: { organizationId: user.organizationId, isCurrent: true },
+        relations: { class: true },
+      }),
+      this.assignments.find({
+        where: { organizationId: user.organizationId, isClassIncharge: true },
+        relations: { teacher: true, class: true },
+      }),
+    ]);
+
+    const enrollmentCount = new Map<string, number>();
+    for (const e of enrollments) {
+      const classId = e.class?.id;
+      if (classId) enrollmentCount.set(classId, (enrollmentCount.get(classId) || 0) + 1);
+    }
+
+    const inchargeByClassId = new Map<string, any>();
+    for (const asgn of incharges) {
+      if (asgn.class?.id && asgn.teacher) {
+        inchargeByClassId.set(asgn.class.id, {
+          teacherId: asgn.teacher.id,
+          name: `${asgn.teacher.firstName || ''} ${asgn.teacher.lastName || ''}`.trim(),
+          employeeId: asgn.teacher.employeeId,
+        });
+      }
+    }
+
+    return { enrollmentCount, inchargeByClassId };
+  }
+
   async findAllClasses(
     user: AuthenticatedUser,
     query?: { name?: string; section?: string; academicYear?: string },
@@ -43,33 +78,7 @@ export class ClassesService extends TenantCrudService<Class> {
       order: { name: 'ASC', section: 'ASC' },
     });
 
-    const enrollments = await this.enrollments.find({
-      where: { organizationId: user.organizationId, isCurrent: true },
-      relations: { class: true },
-    });
-
-    const incharges = await this.assignments.find({
-      where: { organizationId: user.organizationId, isClassIncharge: true },
-      relations: { teacher: true, class: true },
-    });
-
-    const classEnrollmentCount = new Map<string, number>();
-    for (const enrollment of enrollments) {
-      const classId = enrollment.class?.id;
-      if (!classId) continue;
-      classEnrollmentCount.set(classId, (classEnrollmentCount.get(classId) || 0) + 1);
-    }
-
-    const inchargeMap = new Map<string, any>();
-    for (const asgn of incharges) {
-      if (asgn.class?.id && asgn.teacher) {
-        inchargeMap.set(asgn.class.id, {
-          teacherId: asgn.teacher.id,
-          name: `${asgn.teacher.firstName || ''} ${asgn.teacher.lastName || ''}`.trim(),
-          employeeId: asgn.teacher.employeeId,
-        });
-      }
-    }
+    const { enrollmentCount, inchargeByClassId } = await this.rollupMaps(user);
 
     const byName = new Map<string, Class[]>();
     for (const cls of orgClasses) {
@@ -81,13 +90,13 @@ export class ClassesService extends TenantCrudService<Class> {
     return [...byName.entries()].map(([name, sections]) => ({
       className: name,
       totalSections: sections.length,
-      totalStudents: sections.reduce((sum, cls) => sum + (classEnrollmentCount.get(cls.id) || 0), 0),
+      totalStudents: sections.reduce((sum, cls) => sum + (enrollmentCount.get(cls.id) || 0), 0),
       sections: sections.map((cls) => ({
         classId: cls.id,
         section: cls.section,
         academicYear: cls.academicYear,
-        studentCount: classEnrollmentCount.get(cls.id) || 0,
-        incharge: inchargeMap.get(cls.id) || null,
+        studentCount: enrollmentCount.get(cls.id) || 0,
+        incharge: inchargeByClassId.get(cls.id) || null,
       })),
     }));
   }
@@ -113,32 +122,7 @@ export class ClassesService extends TenantCrudService<Class> {
       throw new NotFoundException(`No sections found for class '${classIdOrName}'`);
     }
 
-    const enrollments = await this.enrollments.find({
-      where: { organizationId: user.organizationId, isCurrent: true },
-      relations: { class: true },
-    });
-
-    const incharges = await this.assignments.find({
-      where: { organizationId: user.organizationId, isClassIncharge: true },
-      relations: { teacher: true, class: true },
-    });
-
-    const countMap = new Map<string, number>();
-    for (const e of enrollments) {
-      if (e.class?.id) {
-        countMap.set(e.class.id, (countMap.get(e.class.id) || 0) + 1);
-      }
-    }
-
-    const inchargeMap = new Map<string, any>();
-    for (const asgn of incharges) {
-      if (asgn.class?.id && asgn.teacher) {
-        inchargeMap.set(asgn.class.id, {
-          teacherId: asgn.teacher.id,
-          name: `${asgn.teacher.firstName || ''} ${asgn.teacher.lastName || ''}`.trim(),
-        });
-      }
-    }
+    const { enrollmentCount, inchargeByClassId } = await this.rollupMaps(user);
 
     return {
       className,
@@ -148,8 +132,8 @@ export class ClassesService extends TenantCrudService<Class> {
         name: s.name,
         section: s.section,
         academicYear: s.academicYear,
-        studentCount: countMap.get(s.id) || 0,
-        incharge: inchargeMap.get(s.id) || null,
+        studentCount: enrollmentCount.get(s.id) || 0,
+        incharge: inchargeByClassId.get(s.id) || null,
       })),
     };
   }
