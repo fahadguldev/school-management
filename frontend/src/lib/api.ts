@@ -51,8 +51,9 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<{ data: T | null; status: number; ok: boolean; error?: string }> {
     const url = `${API_BASE}${path}`;
+    const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(options.headers as Record<string, string>),
     };
 
@@ -117,51 +118,15 @@ class ApiClient {
     return null;
   }
 
-  async uploadFile<T = any>(
+  /** Builds a multipart body and posts it through the same auth/refresh/envelope path. */
+  private async uploadFile<T = any>(
     path: string,
     file: File | Blob,
     filename: string = "marks.csv"
-  ): Promise<{ data: T | null; status: number; ok: boolean; error?: string }> {
-    const url = `${API_BASE}${path}`;
+  ) {
     const formData = new FormData();
     formData.append("file", file, filename);
-
-    const headers: Record<string, string> = {};
-    if (this.tokens?.accessToken) {
-      headers["Authorization"] = `Bearer ${this.tokens.accessToken}`;
-    }
-
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers,
-        body: formData,
-      });
-
-      const contentType = res.headers.get("content-type");
-      let data = null;
-      if (contentType && contentType.includes("application/json")) {
-        data = await res.json();
-      }
-
-      if (!res.ok) {
-        return {
-          data,
-          status: res.status,
-          ok: false,
-          error: data?.message || `Upload failed with status ${res.status}`,
-        };
-      }
-
-      return { data, status: res.status, ok: true };
-    } catch (err: any) {
-      return {
-        data: null,
-        status: 0,
-        ok: false,
-        error: err.message || "Network error during file upload",
-      };
-    }
+    return this.request<T>(path, { method: "POST", body: formData });
   }
 
   // Domain API helpers
@@ -171,10 +136,6 @@ class ApiClient {
     login: (payload: { email: string; password: string }) =>
       this.request<AuthTokens>("/auth/login", { method: "POST", body: JSON.stringify(payload) }),
     logout: () => this.request("/auth/logout", { method: "POST" }),
-    requestPasswordReset: (email: string) =>
-      this.request("/auth/password-reset/request", { method: "POST", body: JSON.stringify({ email }) }),
-    resetPassword: (token: string, password: string) =>
-      this.request("/auth/password-reset/confirm", { method: "POST", body: JSON.stringify({ token, password }) }),
   };
 
   organizations = {
@@ -191,14 +152,7 @@ class ApiClient {
     createYear: (payload: { name: string; startDate: string; endDate: string; isCurrent?: boolean }) =>
       this.request("/academic/years", { method: "POST", body: JSON.stringify(payload) }),
     getTerms: () => this.request("/academic/terms"),
-    createTerm: (payload: { name: string; startDate: string; endDate: string; academicYearId?: string }) =>
-      this.request("/academic/terms", { method: "POST", body: JSON.stringify(payload) }),
-    getEnrollments: () => this.request("/academic/enrollments"),
-    createEnrollment: (payload: { studentId: string; classId: string; academicYear?: string; term?: string; isCurrent?: boolean }) =>
-      this.request("/academic/enrollments", { method: "POST", body: JSON.stringify(payload) }),
     getTeacherAssignments: () => this.request("/academic/teacher-assignments"),
-    createTeacherAssignment: (payload: { teacherId: string; classId: string; subjectId: string; isClassIncharge?: boolean }) =>
-      this.request("/academic/teacher-assignments", { method: "POST", body: JSON.stringify(payload) }),
   };
 
   classes = {
@@ -207,13 +161,8 @@ class ApiClient {
       return this.request(`/classes${q ? `?${q}` : ""}`);
     },
     getSections: () => this.request("/classes/sections"),
-    getSectionsForClass: (id: string) => this.request(`/classes/${id}/sections`),
-    getRoster: (id: string) => this.request(`/classes/${id}/roster`),
-    getOne: (id: string) => this.request(`/classes/${id}`),
     create: (payload: { name: string; section: string; academicYear: string }) =>
       this.request("/classes", { method: "POST", body: JSON.stringify(payload) }),
-    update: (id: string, payload: Partial<{ name: string; section: string; academicYear: string }>) =>
-      this.request(`/classes/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   };
 
   subjects = {
@@ -227,33 +176,21 @@ class ApiClient {
       const q = new URLSearchParams(params as any).toString();
       return this.request(`/students${q ? `?${q}` : ""}`);
     },
-    getOne: (id: string) => this.request(`/students/${id}`),
     getHistory: (id: string) => this.request(`/students/${id}/history`),
     create: (payload: any) => this.request("/students", { method: "POST", body: JSON.stringify(payload) }),
-    update: (id: string, payload: any) => this.request(`/students/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
-    deactivate: (id: string) => this.request(`/students/${id}/deactivate`, { method: "PATCH" }),
-    activate: (id: string) => this.request(`/students/${id}/activate`, { method: "PATCH" }),
   };
 
   teachers = {
     getAll: () => this.request("/teachers"),
-    getOne: (id: string) => this.request(`/teachers/${id}`),
-    create: (payload: { firstName: string; lastName: string; employeeId: string }) =>
-      this.request("/teachers", { method: "POST", body: JSON.stringify(payload) }),
   };
 
   exams = {
     getAll: () => this.request("/exams"),
     create: (payload: any) => this.request("/exams", { method: "POST", body: JSON.stringify(payload) }),
-    updateStatus: (id: string, status: string) =>
-      this.request(`/exams/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   };
 
   marks = {
     getByAssessment: (assessmentId: string) => this.request(`/marks/assessment/${assessmentId}`),
-    enterMark: (payload: { assessmentId: string; studentId: string; subjectId: string; obtainedMarks: number; isAbsent?: boolean }) =>
-      this.request("/marks", { method: "POST", body: JSON.stringify(payload) }),
-    importMarks: (rows: any[]) => this.request("/marks/import", { method: "POST", body: JSON.stringify({ rows }) }),
     importFile: (file: File | Blob, filename?: string) => this.uploadFile("/marks/import", file, filename),
     getTemplate: () => this.request("/marks/import/template"),
     publishAssessment: (assessmentId: string) =>
@@ -264,8 +201,6 @@ class ApiClient {
     getByAssessment: (assessmentId: string) => this.request(`/results/assessment/${assessmentId}`),
     getStudentSummary: (studentId: string, termId?: string) =>
       this.request(`/results/student/${studentId}/summary${termId ? `?termId=${termId}` : ""}`),
-    getStudentReportCard: (studentId: string, termId?: string) =>
-      this.request(`/results/student/${studentId}/report-card${termId ? `?termId=${termId}` : ""}`),
   };
 
   fees = {
@@ -280,8 +215,6 @@ class ApiClient {
       this.request("/fees", { method: "POST", body: JSON.stringify(payload) }),
     markPaid: (feeId: string, payload: { amount: number; paymentMethod: string; receiptNumber?: string }) =>
       this.request(`/fees/${feeId}/pay`, { method: "POST", body: JSON.stringify(payload) }),
-    markUnpaid: (feeId: string) => this.request(`/fees/${feeId}/unpay`, { method: "POST" }),
-    getPayments: (feeId: string) => this.request(`/fees/${feeId}/payments`),
   };
 
   audit = {
