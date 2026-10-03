@@ -24,7 +24,6 @@ const FEATURES = [
     accent: "#2563EB",
     span: "col-span-12 md:col-span-8",
     size: "large",
-    image: true,
   },
   {
     icon: TrendingUp,
@@ -33,7 +32,6 @@ const FEATURES = [
     accent: "#059669",
     span: "col-span-12 md:col-span-4",
     size: "small",
-    image: false,
   },
   {
     icon: Users,
@@ -42,7 +40,6 @@ const FEATURES = [
     accent: "#7c3aed",
     span: "col-span-12 md:col-span-4",
     size: "small",
-    image: false,
   },
   {
     icon: FileCheck,
@@ -51,7 +48,6 @@ const FEATURES = [
     accent: "#0891b2",
     span: "col-span-12 md:col-span-4",
     size: "small",
-    image: false,
   },
   {
     icon: ShieldCheck,
@@ -60,7 +56,6 @@ const FEATURES = [
     accent: "#b45309",
     span: "col-span-12 md:col-span-4",
     size: "small",
-    image: false,
   },
   {
     icon: CreditCard,
@@ -69,7 +64,6 @@ const FEATURES = [
     accent: "#be185d",
     span: "col-span-12 md:col-span-6",
     size: "medium",
-    image: false,
   },
   {
     icon: ShieldCheck,
@@ -78,7 +72,6 @@ const FEATURES = [
     accent: "#475569",
     span: "col-span-12 md:col-span-6",
     size: "medium",
-    image: false,
   },
 ];
 
@@ -93,7 +86,6 @@ function FeatureCard({
   accent,
   span,
   size,
-  image,
   index,
 }: (typeof BENTO)[0] & { index: number }) {
   const ref = useRef<HTMLDivElement>(null);

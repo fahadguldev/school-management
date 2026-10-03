@@ -150,47 +150,48 @@ export function StudentPortal() {
       {activeView === "results" && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="p-4 pb-1">
-                <CardDescription className="text-[11px] font-semibold uppercase">Total Score</CardDescription>
-                <CardTitle className="text-2xl font-bold font-mono">{totalObtained} / {totalMax}</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-1 text-[11px] text-muted-foreground">
-                Sum across {reportCard.length} subjects
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="p-4 pb-1">
-                <CardDescription className="text-[11px] font-semibold uppercase">Overall Percentage</CardDescription>
-                <CardTitle className="text-2xl font-bold text-primary font-mono">{overallPercentage}%</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-1 text-[11px] text-emerald-600 font-medium">
-                Target Met (Passing: 40%)
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="p-4 pb-1">
-                <CardDescription className="text-[11px] font-semibold uppercase">Overall Grade</CardDescription>
-                <CardTitle className="text-2xl font-bold text-emerald-600">Grade {overallGrade}</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-1 text-[11px] text-muted-foreground">
-                Status: {overallStatus}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="p-4 pb-1">
-                <CardDescription className="text-[11px] font-semibold uppercase">Published Status</CardDescription>
-                <CardTitle className="text-base font-bold flex items-center gap-1 text-emerald-600">
-                  <CheckCircle2 className="h-4 w-4" /> Official Results
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-1 text-[11px] text-muted-foreground">
-                Live backend verified
-              </CardContent>
-            </Card>
+            {([
+              {
+                label: "Total Score",
+                value: `${totalObtained} / ${totalMax}`,
+                valueClass: "font-mono",
+                sub: `Sum across ${reportCard.length} subjects`,
+                subClass: "text-muted-foreground",
+              },
+              {
+                label: "Overall Percentage",
+                value: `${overallPercentage}%`,
+                valueClass: "text-primary font-mono",
+                sub: "Target Met (Passing: 40%)",
+                subClass: "text-emerald-600 font-medium",
+              },
+              {
+                label: "Overall Grade",
+                value: `Grade ${overallGrade}`,
+                valueClass: "text-emerald-600",
+                sub: `Status: ${overallStatus}`,
+                subClass: "text-muted-foreground",
+              },
+              {
+                label: "Published Status",
+                value: (
+                  <span className="text-base font-bold flex items-center gap-1 text-emerald-600">
+                    <CheckCircle2 className="h-4 w-4" /> Official Results
+                  </span>
+                ),
+                valueClass: "",
+                sub: "Live backend verified",
+                subClass: "text-muted-foreground",
+              },
+            ] as const).map((s) => (
+              <Card key={s.label}>
+                <CardHeader className="p-4 pb-1">
+                  <CardDescription className="text-[11px] font-semibold uppercase">{s.label}</CardDescription>
+                  <CardTitle className={`text-2xl font-bold ${s.valueClass}`}>{s.value}</CardTitle>
+                </CardHeader>
+                <CardContent className={`p-4 pt-1 text-[11px] ${s.subClass}`}>{s.sub}</CardContent>
+              </Card>
+            ))}
           </div>
 
           <Card>

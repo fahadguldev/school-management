@@ -460,51 +460,52 @@ export function TestBench() {
     <div className="space-y-6">
       {/* Top summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <Card className="border-l-4 border-l-primary">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total PRD Features</CardDescription>
-            <CardTitle className="text-3xl font-bold">{features.length}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">Requirements evaluated from MVP PRD</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-emerald-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-              Implemented & Working
-            </CardDescription>
-            <CardTitle className="text-3xl font-bold text-emerald-600">{implementedCount}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">{Math.round((implementedCount / features.length) * 100)}% of PRD functional</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-amber-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-              Partially Implemented
-            </CardDescription>
-            <CardTitle className="text-3xl font-bold text-amber-600">{partialCount}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">Contains gaps, bugs, or missing file parsers</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-rose-500">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400">
-              Unimplemented / Missing
-            </CardDescription>
-            <CardTitle className="text-3xl font-bold text-rose-600">{missingCount}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">APIs, RLS, or intelligence engines to build</p>
-          </CardContent>
-        </Card>
+        {([
+          {
+            accent: "border-l-primary",
+            label: "Total PRD Features",
+            labelClass: "",
+            value: features.length,
+            valueClass: "",
+            sub: "Requirements evaluated from MVP PRD",
+          },
+          {
+            accent: "border-l-emerald-500",
+            label: "Implemented & Working",
+            labelClass: "text-emerald-700 dark:text-emerald-400",
+            value: implementedCount,
+            valueClass: "text-emerald-600",
+            sub: `${Math.round((implementedCount / features.length) * 100)}% of PRD functional`,
+          },
+          {
+            accent: "border-l-amber-500",
+            label: "Partially Implemented",
+            labelClass: "text-amber-700 dark:text-amber-400",
+            value: partialCount,
+            valueClass: "text-amber-600",
+            sub: "Contains gaps, bugs, or missing file parsers",
+          },
+          {
+            accent: "border-l-rose-500",
+            label: "Unimplemented / Missing",
+            labelClass: "text-rose-700 dark:text-rose-400",
+            value: missingCount,
+            valueClass: "text-rose-600",
+            sub: "APIs, RLS, or intelligence engines to build",
+          },
+        ] as const).map((s) => (
+          <Card key={s.label} className={`border-l-4 ${s.accent}`}>
+            <CardHeader className="pb-2">
+              <CardDescription className={`text-xs font-semibold uppercase tracking-wider ${s.labelClass}`}>
+                {s.label}
+              </CardDescription>
+              <CardTitle className={`text-3xl font-bold ${s.valueClass}`}>{s.value}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">{s.sub}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Controls & Filter Bar */}

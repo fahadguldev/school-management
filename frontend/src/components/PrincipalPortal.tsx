@@ -68,59 +68,56 @@ export function PrincipalPortal() {
 
       {/* Overview Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-        <Card>
-          <CardHeader className="p-4 pb-1">
-            <CardDescription className="text-[11px] font-semibold uppercase">Total Students</CardDescription>
-            <CardTitle className="text-2xl font-bold">{overview?.totalStudents || "1,250"}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 text-[11px] text-muted-foreground">
-            Enrolled across all classes
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="p-4 pb-1">
-            <CardDescription className="text-[11px] font-semibold uppercase">Overall Average</CardDescription>
-            <CardTitle className="text-2xl font-bold text-primary">{overview?.overallAverage || 68}%</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 text-[11px] text-emerald-600 font-medium">
-            +4.2% from previous term
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="p-4 pb-1">
-            <CardDescription className="text-[11px] font-semibold uppercase">Pass Rate</CardDescription>
-            <CardTitle className="text-2xl font-bold">{overview?.passRate || 87}%</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 text-[11px] text-muted-foreground">
-            School-wide pass threshold
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="p-4 pb-1">
-            <CardDescription className="text-[11px] font-semibold uppercase text-emerald-700 dark:text-emerald-400">
-              Improving Cohort
-            </CardDescription>
-            <CardTitle className="text-2xl font-bold text-emerald-600">{overview?.improvingStudents || 642}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 text-[11px] text-emerald-600 flex items-center">
-            <TrendingUp className="h-3 w-3 mr-1" /> Students gaining
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="p-4 pb-1">
-            <CardDescription className="text-[11px] font-semibold uppercase text-rose-700 dark:text-rose-400">
-              Declining Cohort
-            </CardDescription>
-            <CardTitle className="text-2xl font-bold text-rose-600">{overview?.decliningStudents || 118}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1 text-[11px] text-rose-600 flex items-center">
-            <TrendingDown className="h-3 w-3 mr-1" /> Needs attention
-          </CardContent>
-        </Card>
+        {([
+          {
+            label: "Total Students",
+            labelClass: "",
+            value: overview?.totalStudents || "1,250",
+            valueClass: "",
+            sub: "Enrolled across all classes",
+            subClass: "text-muted-foreground",
+          },
+          {
+            label: "Overall Average",
+            labelClass: "",
+            value: `${overview?.overallAverage || 68}%`,
+            valueClass: "text-primary",
+            sub: "+4.2% from previous term",
+            subClass: "text-emerald-600 font-medium",
+          },
+          {
+            label: "Pass Rate",
+            labelClass: "",
+            value: `${overview?.passRate || 87}%`,
+            valueClass: "",
+            sub: "School-wide pass threshold",
+            subClass: "text-muted-foreground",
+          },
+          {
+            label: "Improving Cohort",
+            labelClass: "text-emerald-700 dark:text-emerald-400",
+            value: overview?.improvingStudents || 642,
+            valueClass: "text-emerald-600",
+            sub: <><TrendingUp className="h-3 w-3 mr-1" /> Students gaining</>,
+            subClass: "text-emerald-600 flex items-center",
+          },
+          {
+            label: "Declining Cohort",
+            labelClass: "text-rose-700 dark:text-rose-400",
+            value: overview?.decliningStudents || 118,
+            valueClass: "text-rose-600",
+            sub: <><TrendingDown className="h-3 w-3 mr-1" /> Needs attention</>,
+            subClass: "text-rose-600 flex items-center",
+          },
+        ] as const).map((s) => (
+          <Card key={s.label}>
+            <CardHeader className="p-4 pb-1">
+              <CardDescription className={`text-[11px] font-semibold uppercase ${s.labelClass}`}>{s.label}</CardDescription>
+              <CardTitle className={`text-2xl font-bold ${s.valueClass}`}>{s.value}</CardTitle>
+            </CardHeader>
+            <CardContent className={`p-4 pt-1 text-[11px] ${s.subClass}`}>{s.sub}</CardContent>
+          </Card>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
