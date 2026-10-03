@@ -38,7 +38,6 @@ function loadLocalEnvFile(): void {
 loadLocalEnvFile();
 
 export interface AppConfig {
-  port: number;
   jwt: {
     accessSecret: string;
     refreshSecret: string;
@@ -58,7 +57,6 @@ export interface AppConfig {
 
 export function getConfig(): AppConfig {
   return {
-    port: parseInt(process.env.PORT || '4001', 10),
     jwt: {
       accessSecret: process.env.JWT_ACCESS_SECRET || 'dev-access-secret-change-me',
       refreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-me',

@@ -19,12 +19,10 @@ export class AnalyticsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('strongThreshold') strongThreshold?: string,
     @Query('weakThreshold') weakThreshold?: string,
-    @Query('evaluatorRole') evaluatorRole?: string,
     @Query('classId') classId?: string,
     @Query('section') section?: string,
   ) {
     return this.analytics.studentPerformance(user, {
-      evaluatorRole,
       strongThreshold: strongThreshold ? Number(strongThreshold) : undefined,
       weakThreshold: weakThreshold ? Number(weakThreshold) : undefined,
       classId,

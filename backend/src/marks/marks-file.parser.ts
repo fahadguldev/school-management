@@ -78,16 +78,15 @@ function validatePayload(payload: RawImportRow, rowNumber: number): MarkPayload 
 export function parseMarksFile(buffer: Buffer, originalName: string): MarkPayload[] {
   let workbook: XLSX.WorkBook;
 
+  const ext = originalName.toLowerCase();
+  if (!ext.endsWith('.csv') && !ext.endsWith('.xlsx') && !ext.endsWith('.xls')) {
+    throw new BadRequestException(
+      'Unsupported file type. Upload a .xlsx or .csv file containing marks rows.',
+    );
+  }
+
   try {
-    if (originalName.toLowerCase().endsWith('.csv')) {
-      workbook = XLSX.read(buffer, { type: 'buffer' });
-    } else if (originalName.toLowerCase().endsWith('.xlsx') || originalName.toLowerCase().endsWith('.xls')) {
-      workbook = XLSX.read(buffer, { type: 'buffer' });
-    } else {
-      throw new BadRequestException(
-        'Unsupported file type. Upload a .xlsx or .csv file containing marks rows.',
-      );
-    }
+    workbook = XLSX.read(buffer, { type: 'buffer' });
   } catch (error) {
     if (error instanceof BadRequestException) {
       throw error;
