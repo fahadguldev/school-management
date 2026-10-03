@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   Patch,
@@ -56,30 +55,12 @@ export class StudentsController {
 
   @Roles('ADMIN')
   @Patch(':id/deactivate')
-  deactivatePatch(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.students.deactivate(id, user);
-  }
-
-  @Roles('ADMIN')
-  @Post(':id/deactivate')
   deactivate(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.students.deactivate(id, user);
   }
 
   @Roles('ADMIN')
-  @Delete(':id')
-  deleteStudent(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.students.deactivate(id, user);
-  }
-
-  @Roles('ADMIN')
   @Patch(':id/activate')
-  activatePatch(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.students.activate(id, user);
-  }
-
-  @Roles('ADMIN')
-  @Post(':id/activate')
   activate(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.students.activate(id, user);
   }

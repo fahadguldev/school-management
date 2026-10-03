@@ -24,13 +24,4 @@ export class ResultsController {
   ) {
     return this.results.getStudentReportCardSummary(studentId, user.organizationId, termId);
   }
-
-  @Get('student/:studentId/report-card')
-  getStudentReportCard(
-    @Param('studentId') studentId: string,
-    @Query('termId') termId: string | undefined,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.results.getStudentReportCardSummary(studentId, user.organizationId, termId);
-  }
 }
