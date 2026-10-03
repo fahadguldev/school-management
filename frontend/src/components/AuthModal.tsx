@@ -27,25 +27,22 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
 
   if (!isOpen) return null;
 
-  const handleBootstrap = async (e: React.FormEvent) => {
+  const submit = async (
+    e: React.FormEvent,
+    run: () => Promise<any>,
+    errFallback: string
+  ) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const res = await api.auth.bootstrapSchool({
-        schoolName,
-        email,
-        password,
-        firstName,
-        lastName,
-      });
-
+      const res = await run();
       if (res.ok && res.data) {
         api.setAuth(res.data);
         onSuccess(res.data);
         onClose();
       } else {
-        setError(res.error || "Bootstrap failed. Check backend connection.");
+        setError(res.error || errFallback);
       }
     } catch (err: any) {
       setError(err.message || "Failed to reach server");
@@ -54,25 +51,15 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.auth.login({ email, password });
-      if (res.ok && res.data) {
-        api.setAuth(res.data);
-        onSuccess(res.data);
-        onClose();
-      } else {
-        setError(res.error || "Login failed. Invalid credentials.");
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to reach server");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleBootstrap = (e: React.FormEvent) =>
+    submit(
+      e,
+      () => api.auth.bootstrapSchool({ schoolName, email, password, firstName, lastName }),
+      "Bootstrap failed. Check backend connection."
+    );
+
+  const handleLogin = (e: React.FormEvent) =>
+    submit(e, () => api.auth.login({ email, password }), "Login failed. Invalid credentials.");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">

@@ -27,7 +27,6 @@ import {
 
 export function AdminPortal() {
   const [activeSubTab, setActiveSubTab] = useState<"academic" | "students" | "teachers" | "exams" | "fees" | "security" | "audit">("academic");
-  const [loading, setLoading] = useState(false);
   const [rlsReport, setRlsReport] = useState<any>(null);
   const [verifyingRls, setVerifyingRls] = useState(false);
   const [rlsProof, setRlsProof] = useState<any>(null);
@@ -35,13 +34,11 @@ export function AdminPortal() {
 
   // Academic state
   const [years, setYears] = useState<any[]>([]);
-  const [terms, setTerms] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
 
   // Form states
   const [newYearName, setNewYearName] = useState("2026-2027");
-  const [newTermName, setNewTermName] = useState("Term 1");
   const [newClassName, setNewClassName] = useState("8");
   const [newClassSection, setNewClassSection] = useState("A");
   const [newSubjectName, setNewSubjectName] = useState("Mathematics");
@@ -52,14 +49,10 @@ export function AdminPortal() {
   const [teachers, setTeachers] = useState<any[]>([]);
   const [newStudentName, setNewStudentName] = useState("Ayan Khan");
   const [newStudentAdmission, setNewStudentAdmission] = useState(`ADM-${Date.now().toString().slice(-4)}`);
-  const [newTeacherFirst, setNewTeacherFirst] = useState("Ahmed");
-  const [newTeacherLast, setNewTeacherLast] = useState("Ali");
-  const [newTeacherEmpId, setNewTeacherEmpId] = useState(`EMP-${Date.now().toString().slice(-4)}`);
 
   // Exams state
   const [exams, setExams] = useState<any[]>([]);
   const [newExamName, setNewExamName] = useState("Midterm Exam");
-  const [newExamType, setNewExamType] = useState("Exam");
   const [newExamMaxMarks, setNewExamMaxMarks] = useState(100);
   const [newExamPassMarks, setNewExamPassMarks] = useState(40);
 
@@ -76,36 +69,32 @@ export function AdminPortal() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   const loadData = async () => {
-    setLoading(true);
     try {
-      const [y, t, c, s, st, tc, ex, fs, fl, rls, al] = await Promise.all([
-        api.academic.getYears(),
-        api.academic.getTerms(),
-        api.classes.getAll(),
-        api.subjects.getAll(),
-        api.students.getAll(),
-        api.teachers.getAll(),
-        api.exams.getAll(),
-        api.fees.getStructures(),
-        api.fees.getAll(),
-        api.tenancy.getRlsStatus(),
-        api.audit.getLogs({ limit: 50 }),
-      ]);
-      if (y.ok) setYears(y.data || []);
-      if (t.ok) setTerms(t.data || []);
-      if (c.ok) setClasses(c.data || []);
-      if (s.ok) setSubjects(s.data || []);
-      if (st.ok) setStudents(st.data || []);
-      if (tc.ok) setTeachers(tc.data || []);
-      if (ex.ok) setExams(ex.data || []);
-      if (fs.ok) setFeeStructures(fs.data || []);
-      if (fl.ok) setFeesList(fl.data || []);
-      if (rls.ok) setRlsReport(rls.data);
-      if (al?.ok) setAuditLogs(al.data || []);
+      const pairs: Array<[(v: any) => void, Promise<any>]> = [
+        [(v) => setYears(v || []), api.academic.getYears()],
+        [(v) => setClasses(v || []), api.classes.getAll()],
+        [(v) => setSubjects(v || []), api.subjects.getAll()],
+        [(v) => setStudents(v || []), api.students.getAll()],
+        [(v) => setTeachers(v || []), api.teachers.getAll()],
+        [(v) => setExams(v || []), api.exams.getAll()],
+        [(v) => setFeeStructures(v || []), api.fees.getStructures()],
+        [(v) => setFeesList(v || []), api.fees.getAll()],
+        [(v) => setRlsReport(v), api.tenancy.getRlsStatus()],
+        [(v) => setAuditLogs(v || []), api.audit.getLogs({ limit: 50 })],
+      ];
+      (await Promise.all(pairs.map(([, p]) => p))).forEach((r, i) => {
+        if (r.ok) pairs[i][0](r.data);
+      });
     } catch {
       // ignore
     }
-    setLoading(false);
+  };
+
+  /** Runs a mutation, surfaces the outcome banner, and reloads on success. */
+  const mutate = async (run: () => Promise<any>, ok: string, err: string) => {
+    const res = await run();
+    setMessage({ type: res.ok ? "success" : "error", text: res.ok ? ok : res.error || err });
+    if (res.ok) loadData();
   };
 
   const handleVerifyIsolation = async () => {
@@ -130,47 +119,34 @@ export function AdminPortal() {
 
   const handleCreateYear = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await api.academic.createYear({
-      name: newYearName,
-      startDate: "2026-08-01",
-      endDate: "2027-06-30",
-      isCurrent: true,
-    });
-    if (res.ok) {
-      setMessage({ type: "success", text: `Academic Year ${newYearName} created as active year.` });
-      loadData();
-    } else {
-      setMessage({ type: "error", text: res.error || "Failed to create academic year" });
-    }
+    await mutate(
+      () => api.academic.createYear({
+        name: newYearName,
+        startDate: "2026-08-01",
+        endDate: "2027-06-30",
+        isCurrent: true,
+      }),
+      `Academic Year ${newYearName} created as active year.`,
+      "Failed to create academic year"
+    );
   };
 
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await api.classes.create({
-      name: newClassName,
-      section: newClassSection,
-      academicYear: newYearName,
-    });
-    if (res.ok) {
-      setMessage({ type: "success", text: `Class ${newClassName}-${newClassSection} created.` });
-      loadData();
-    } else {
-      setMessage({ type: "error", text: res.error || "Failed to create class" });
-    }
+    await mutate(
+      () => api.classes.create({ name: newClassName, section: newClassSection, academicYear: newYearName }),
+      `Class ${newClassName}-${newClassSection} created.`,
+      "Failed to create class"
+    );
   };
 
   const handleCreateSubject = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await api.subjects.create({
-      name: newSubjectName,
-      code: newSubjectCode,
-    });
-    if (res.ok) {
-      setMessage({ type: "success", text: `Subject ${newSubjectName} added.` });
-      loadData();
-    } else {
-      setMessage({ type: "error", text: res.error || "Failed to create subject" });
-    }
+    await mutate(
+      () => api.subjects.create({ name: newSubjectName, code: newSubjectCode }),
+      `Subject ${newSubjectName} added.`,
+      "Failed to create subject"
+    );
   };
 
   const handleCreateStudent = async (e: React.FormEvent) => {
@@ -185,12 +161,13 @@ export function AdminPortal() {
       section: newClassSection,
       admissionDate: "2026-08-15",
     });
+    setMessage({
+      type: res.ok ? "success" : "error",
+      text: res.ok ? `Student ${newStudentName} created.` : res.error || "Failed to create student",
+    });
     if (res.ok) {
-      setMessage({ type: "success", text: `Student ${newStudentName} created.` });
       setNewStudentAdmission(`ADM-${Date.now().toString().slice(-4)}`);
       loadData();
-    } else {
-      setMessage({ type: "error", text: res.error || "Failed to create student" });
     }
   };
 
@@ -200,48 +177,38 @@ export function AdminPortal() {
     const subjectObj = subjects[0];
     const yearObj = years[0];
 
-    const res = await api.exams.create({
-      name: newExamName,
-      type: newExamType,
-      maximumMarks: newExamMaxMarks,
-      passingMarks: newExamPassMarks,
-      examDate: "2026-10-15",
-      classId: classObj?.id,
-      subjectId: subjectObj?.id,
-      academicYearId: yearObj?.id,
-      status: "Draft",
-    });
-    if (res.ok) {
-      setMessage({ type: "success", text: `Exam ${newExamName} created in Draft status.` });
-      loadData();
-    } else {
-      setMessage({ type: "error", text: res.error || "Failed to create exam" });
-    }
+    await mutate(
+      () => api.exams.create({
+        name: newExamName,
+        type: "Exam",
+        maximumMarks: newExamMaxMarks,
+        passingMarks: newExamPassMarks,
+        examDate: "2026-10-15",
+        classId: classObj?.id,
+        subjectId: subjectObj?.id,
+        academicYearId: yearObj?.id,
+        status: "Draft",
+      }),
+      `Exam ${newExamName} created in Draft status.`,
+      "Failed to create exam"
+    );
   };
 
   const handlePublishExam = async (examId: string) => {
-    const res = await api.marks.publishAssessment(examId);
-    if (res.ok) {
-      setMessage({ type: "success", text: "Assessment published! Results auto-calculated." });
-      loadData();
-    } else {
-      setMessage({ type: "error", text: res.error || "Failed to publish assessment" });
-    }
+    await mutate(
+      () => api.marks.publishAssessment(examId),
+      "Assessment published! Results auto-calculated.",
+      "Failed to publish assessment"
+    );
   };
 
   const handleCreateFeeStructure = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await api.fees.createStructure({
-      name: newFeeName,
-      amount: Number(newFeeAmount),
-      frequency: "monthly",
-    });
-    if (res.ok) {
-      setMessage({ type: "success", text: `Fee structure ${newFeeName} created.` });
-      loadData();
-    } else {
-      setMessage({ type: "error", text: res.error || "Failed to create fee structure" });
-    }
+    await mutate(
+      () => api.fees.createStructure({ name: newFeeName, amount: Number(newFeeAmount), frequency: "monthly" }),
+      `Fee structure ${newFeeName} created.`,
+      "Failed to create fee structure"
+    );
   };
 
   const handleAssignFee = async (e: React.FormEvent) => {
@@ -251,18 +218,16 @@ export function AdminPortal() {
       return;
     }
     const structure = feeStructures.find((fs) => fs.id === selectedStructureForFee);
-    const res = await api.fees.createFee({
-      studentId: selectedStudentForFee,
-      feeStructureId: selectedStructureForFee,
-      amount: Number(structure?.amount || 5000),
-      dueDate: new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
-    });
-    if (res.ok) {
-      setMessage({ type: "success", text: "Fee assigned successfully." });
-      loadData();
-    } else {
-      setMessage({ type: "error", text: res.error || "Failed to assign fee" });
-    }
+    await mutate(
+      () => api.fees.createFee({
+        studentId: selectedStudentForFee,
+        feeStructureId: selectedStructureForFee,
+        amount: Number(structure?.amount || 5000),
+        dueDate: new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
+      }),
+      "Fee assigned successfully.",
+      "Failed to assign fee"
+    );
   };
 
   const handleViewChallan = async (feeId: string) => {
@@ -275,17 +240,15 @@ export function AdminPortal() {
   };
 
   const handleMarkFeePaid = async (feeId: string, amount: number) => {
-    const res = await api.fees.markPaid(feeId, {
-      amount,
-      paymentMethod: "cash",
-      receiptNumber: `REC-${Date.now().toString().slice(-6)}`,
-    });
-    if (res.ok) {
-      setMessage({ type: "success", text: "Payment recorded successfully." });
-      loadData();
-    } else {
-      setMessage({ type: "error", text: res.error || "Failed to record payment" });
-    }
+    await mutate(
+      () => api.fees.markPaid(feeId, {
+        amount,
+        paymentMethod: "cash",
+        receiptNumber: `REC-${Date.now().toString().slice(-6)}`,
+      }),
+      "Payment recorded successfully.",
+      "Failed to record payment"
+    );
   };
 
   return (
@@ -861,22 +824,17 @@ export function AdminPortal() {
                           <Badge variant="outline" className="text-[9px]">Part {i + 1}</Badge>
                         </div>
                         <div className="space-y-1 text-[11px]">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">School:</span>
-                            <span className="font-medium">{activeChallan.school?.name}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Student:</span>
-                            <span className="font-semibold">{activeChallan.student?.name}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Class:</span>
-                            <span>{activeChallan.student?.className}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Adm #:</span>
-                            <span className="font-mono">{activeChallan.student?.admissionNumber}</span>
-                          </div>
+                          {([
+                            ["School:", activeChallan.school?.name, "font-medium"],
+                            ["Student:", activeChallan.student?.name, "font-semibold"],
+                            ["Class:", activeChallan.student?.className, ""],
+                            ["Adm #:", activeChallan.student?.admissionNumber, "font-mono"],
+                          ] as const).map(([label, value, tone]) => (
+                            <div key={label} className="flex justify-between">
+                              <span className="text-muted-foreground">{label}</span>
+                              <span className={tone}>{value}</span>
+                            </div>
+                          ))}
                           <div className="flex justify-between border-t pt-1 font-semibold">
                             <span>Amount:</span>
                             <span className="font-mono text-primary">Rs. {Number(activeChallan.amount).toLocaleString()}</span>
