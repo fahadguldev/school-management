@@ -93,13 +93,10 @@ export class RlsService implements OnModuleInit {
 
     try {
       const sqlPath = path.join(__dirname, '../database/rls.sql');
-      let sqlContent = '';
-      if (fs.existsSync(sqlPath)) {
-        sqlContent = fs.readFileSync(sqlPath, 'utf-8');
-      } else {
-        // Fallback inline script if file is not in dist
-        sqlContent = this.generateRlsSql();
+      if (!fs.existsSync(sqlPath)) {
+        throw new Error(`RLS script not found at ${sqlPath} (nest-cli assets must include **/*.sql)`);
       }
+      const sqlContent = fs.readFileSync(sqlPath, 'utf-8');
 
       await this.dataSource.query(sqlContent);
       return {
@@ -222,36 +219,5 @@ export class RlsService implements OnModuleInit {
       },
       verifiedAt: new Date().toISOString(),
     };
-  }
-
-  private generateRlsSql(): string {
-    const tables = this.TENANT_TABLES.filter((t) => t.table !== 'organizations').map((t) => `'${t.table}'`).join(', ');
-    return `
-      ALTER TABLE IF EXISTS "organizations" ENABLE ROW LEVEL SECURITY;
-      ALTER TABLE IF EXISTS "organizations" FORCE ROW LEVEL SECURITY;
-      DROP POLICY IF EXISTS tenant_isolation_policy ON "organizations";
-      CREATE POLICY tenant_isolation_policy ON "organizations"
-        AS PERMISSIVE FOR ALL TO PUBLIC
-        USING ((NULLIF(current_setting('app.bypass_rls', true), '') = 'on') OR (id = NULLIF(current_setting('app.current_organization_id', true), '')::uuid))
-        WITH CHECK ((NULLIF(current_setting('app.bypass_rls', true), '') = 'on') OR (id = NULLIF(current_setting('app.current_organization_id', true), '')::uuid));
-
-      DO $$
-      DECLARE
-        tbl text;
-        tenant_tables text[] := ARRAY[${tables}];
-      BEGIN
-        FOREACH tbl IN ARRAY tenant_tables LOOP
-          IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
-            EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY;', tbl);
-            EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY;', tbl);
-            EXECUTE format('DROP POLICY IF EXISTS tenant_isolation_policy ON %I;', tbl);
-            EXECUTE format(
-              'CREATE POLICY tenant_isolation_policy ON %I AS PERMISSIVE FOR ALL TO PUBLIC USING ((NULLIF(current_setting(''app.bypass_rls'', true), '''') = ''on'') OR (organization_id = NULLIF(current_setting(''app.current_organization_id'', true), '''')::uuid)) WITH CHECK ((NULLIF(current_setting(''app.bypass_rls'', true), '''') = ''on'') OR (organization_id = NULLIF(current_setting(''app.current_organization_id'', true), '''')::uuid));',
-              tbl
-            );
-          END IF;
-        END LOOP;
-      END $$;
-    `;
   }
 }

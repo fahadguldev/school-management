@@ -1,10 +1,9 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post } from '@nestjs/common';
 import { RlsService } from './rls.service';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { AuthenticatedUser } from '../auth/authenticated-user';
 import { Public } from '../auth/public.decorator';
 import { Roles } from '../auth/roles.decorator';
-import { RolesGuard } from '../auth/roles.guard';
 
 @Controller('tenancy')
 export class TenancyController {
@@ -34,7 +33,6 @@ export class TenancyController {
    */
   @Post('rls/apply')
   @Roles('ADMIN')
-  @UseGuards(RolesGuard)
   async applyRls() {
     return this.rlsService.applyRlsPolicies();
   }
