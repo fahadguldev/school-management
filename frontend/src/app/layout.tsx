@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "EduSaaS — School Management & Academic Intelligence",
-  description: "Multi-tenant School Operations and Academic Intelligence SaaS Platform",
+  title: "SchoolOS — Academic Intelligence for Private Schools",
+  description: "The all-in-one school management and academic analytics platform built for private schools in Pakistan. Real-time results, smart analytics, and fee management.",
 };
 
 export default function RootLayout({
@@ -13,9 +13,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="font-sans antialiased">
+      <body className="antialiased">
         {children}
       </body>
     </html>
   );
 }
+
