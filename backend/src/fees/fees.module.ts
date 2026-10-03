@@ -13,6 +13,5 @@ import { AuditModule } from '../audit/audit.module';
   imports: [TypeOrmModule.forFeature([FeeStructure, Fee, Payment, Student]), AuditModule],
   controllers: [FeesController],
   providers: [FeesService],
-  exports: [TypeOrmModule, FeesService],
 })
 export class FeesModule {}

@@ -11,6 +11,5 @@ import { Term } from './term.entity';
   imports: [TypeOrmModule.forFeature([AcademicYear, StudentEnrollment, TeacherAssignment, Term])],
   controllers: [AcademicController],
   providers: [AcademicService],
-  exports: [TypeOrmModule, AcademicService],
 })
 export class AcademicModule {}

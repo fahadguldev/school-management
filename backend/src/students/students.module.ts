@@ -12,6 +12,5 @@ import { StudentsService } from './students.service';
   imports: [TypeOrmModule.forFeature([Student, StudentEnrollment, TeacherAssignment, Teacher, Result])],
   controllers: [StudentsController],
   providers: [StudentsService],
-  exports: [TypeOrmModule, StudentsService],
 })
 export class StudentsModule {}

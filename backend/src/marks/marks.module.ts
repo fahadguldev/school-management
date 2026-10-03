@@ -20,6 +20,5 @@ import { AuditModule } from '../audit/audit.module';
   ],
   controllers: [MarksController],
   providers: [MarksService],
-  exports: [TypeOrmModule, MarksService],
 })
 export class MarksModule {}
